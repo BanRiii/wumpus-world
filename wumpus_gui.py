@@ -75,18 +75,71 @@ class WumpusGUI:
     # que exponga .nodes() y .neighbors() como tu CaveGraph.
     # ------------------------------------------------------------------
     def _compute_layout(self) -> dict[int, tuple[float, float]]:
-        nodes = self.world.graph.nodes()
+        nodes = list(self.world.graph.nodes())
         n = max(len(nodes), 1)
-        cx, cy = self.width * 0.62, self.height * 0.5
-        radius = min(self.width, self.height) * 0.36
-
+        cx, cy = self.width * 0.70, self.height * 0.5
+        
+        # 1. Posición inicial en círculo
+        radius = min(self.width, self.height) * 0.30
         positions = {}
         for i, node in enumerate(nodes):
             angle = 2 * math.pi * i / n - math.pi / 2
-            x = cx + radius * math.cos(angle)
-            y = cy + radius * math.sin(angle)
-            positions[node] = (x, y)
-        return positions
+            positions[node] = [cx + radius * math.cos(angle), cy + radius * math.sin(angle)]
+            
+        # 2. Algoritmo de simulación física (resortes e imanes)
+        k = radius * 1.5 / math.sqrt(n)
+        temperature = radius * 0.2
+        
+        for _ in range(60):  # Iteraciones para acomodar los nodos
+            displacements = {node: [0.0, 0.0] for node in nodes}
+            
+            # Fuerza de repulsión (los nodos se alejan entre sí)
+            for i_node in nodes:
+                for j_node in nodes:
+                    if i_node != j_node:
+                        dx = positions[i_node][0] - positions[j_node][0]
+                        dy = positions[i_node][1] - positions[j_node][1]
+                        dist = math.hypot(dx, dy)
+                        if dist > 0:
+                            rep = (k * k) / dist
+                            displacements[i_node][0] += (dx / dist) * rep
+                            displacements[i_node][1] += (dy / dist) * rep
+                            
+            # Fuerza de atracción (los pasillos acercan a los nodos conectados)
+            for i_node in nodes:
+                for neighbor in self.world.graph.neighbors(i_node):
+                    dx = positions[i_node][0] - positions[neighbor][0]
+                    dy = positions[i_node][1] - positions[neighbor][1]
+                    dist = math.hypot(dx, dy)
+                    if dist > 0:
+                        attr = (dist * dist) / k
+                        displacements[i_node][0] -= (dx / dist) * attr
+                        displacements[i_node][1] -= (dy / dist) * attr
+                        
+            # Aplicar movimientos calculados
+            for node in nodes:
+                dx = displacements[node][0]
+                dy = displacements[node][1]
+                dist = math.hypot(dx, dy)
+                if dist > 0:
+                    positions[node][0] += (dx / dist) * min(dist, temperature)
+                    positions[node][1] += (dy / dist) * min(dist, temperature)
+                    
+            # "Enfriar" la simulación para que se estabilicen
+            temperature *= 0.95
+            
+        # 3. Centrar el grafo en la pantalla
+        avg_x = sum(p[0] for p in positions.values()) / n
+        avg_y = sum(p[1] for p in positions.values()) / n
+        
+        final_positions = {}
+        for node in nodes:
+            final_positions[node] = (
+                (positions[node][0] - avg_x) * 1.1 + cx, 
+                (positions[node][1] - avg_y) * 1.1 + cy
+            )
+            
+        return final_positions
 
     def _log(self, msg: str) -> None:
         self.log_messages.append(msg)
@@ -109,7 +162,7 @@ class WumpusGUI:
         result = world.maybe_move_wumpus()
         if result is not None:
             old_room, new_room, removed, added = result
-            self._log(f"El Wumpus se movió: {old_room} -> {new_room}")
+            #self._log(f"El Wumpus se movió: {old_room} -> {new_room}")
             if added:
                 self._log(f"Nuevo hedor en: {sorted(added)}")
             if removed:
