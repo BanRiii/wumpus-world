@@ -11,7 +11,7 @@ Se limita a:
       métodos públicos de tu clase `WumpusWorld` (move_player,
       shoot_arrow, grab_gold, climb_out, maybe_move_wumpus).
 
-Requiere: pip install pygame
+Profe instalese: pygame
 
 Importa tu módulo de lógica existente sin tocarlo:
     from wumpus_world import build_classic_cave, WumpusWorld
